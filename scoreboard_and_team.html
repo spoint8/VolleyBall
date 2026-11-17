@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>球場自動分隊與暗黑計分板</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang TC", "Microsoft JhengHei", sans-serif;
+      background-color: #0d0f12;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    /* 頁面切換視圖控制 */
+    .app-view {
+      display: none;
+      width: 100%;
+    }
+
+    .app-view.active {
+      display: flex;
+    }
+
+    /* =========================================
+       1. 暗黑護眼運動計分板樣式 (完全保留並隔離)
+       ========================================= */
+    #view-score {
+      height: 100vh;
+      flex-direction: column;
+      overflow: hidden;
+      background-color: #0d0f12;
+      color: #e2e8f0;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+
+    #view-score .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 16px;
+      background-color: #14171d;
+      border-bottom: 1px solid #262b36;
+      z-index: 10;
+    }
+
+    #view-score .top-bar button {
+      background-color: #1f242d;
+      color: #cbd5e1;
+      border: 1px solid #333b48;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    #view-score .top-bar button:active {
+      background-color: #2d3543;
+      color: #fff;
+    }
+
+    #view-score .set-display {
+      font-size: 17px;
+      font-weight: bold;
+      letter-spacing: 2px;
+      background: #090a0d;
+      color: #f8fafc;
+      padding: 6px 18px;
+      border-radius: 20px;
+      border: 1px solid #2d3543;
+    }
+
+    #view-score .board {
+      flex: 1;
+      display: flex;
+      flex-direction: row;
+      gap: 10px;
+      padding: 10px 10px 68px 10px; /* 底部留空間給右下角懸浮頁籤，避免遮擋 */
+      background-color: #0d0f12;
+    }
+
+    @media (orientation: portrait) {
+      #view-score .board {
+        flex-direction: column;
+      }
+    }
+
+    #view-score .team {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      cursor: pointer;
+      border-radius: 16px;
+      background-color: #161920;
+      border: 2px solid #262b36;
+      transition: transform 0.08s, background-color 0.15s;
+    }
+
+    #view-score .team:active {
+      transform: scale(0.99);
+      background-color: #1d222b;
+    }
+
+    #view-score .theme-red {
+      border-color: rgba(248, 113, 113, 0.35);
+      box-shadow: inset 0 0 40px rgba(248, 113, 113, 0.05);
+    }
+    #view-score .theme-red .score {
+      color: #fca5a5;
+    }
+    #view-score .theme-red .team-name {
+      color: #fecaca;
+      border-bottom: 2px solid rgba(248, 113, 113, 0.4);
+    }
+
+    #view-score .theme-blue {
+      border-color: rgba(56, 189, 248, 0.35);
+      box-shadow: inset 0 0 40px rgba(56, 189, 248, 0.05);
+    }
+    #view-score .theme-blue .score {
+      color: #7dd3fc;
+    }
+    #view-score .theme-blue .team-name {
+      color: #bae6fd;
+      border-bottom: 2px solid rgba(56, 189, 248, 0.4);
+    }
+
+    #view-score .team-name {
+      font-size: 22px;
+      font-weight: bold;
+      background: transparent;
+      border: none;
+      text-align: center;
+      padding: 4px 12px;
+      margin-bottom: 12px;
+      width: 65%;
+      max-width: 220px;
+      outline: none;
+    }
+
+    #view-score .score {
+      font-size: 25vmin;
+      font-weight: 800;
+      line-height: 1;
+      text-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+    }
+
+    #view-score .serve-badge {
+      margin-top: 14px;
+      padding: 5px 14px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: bold;
+      background-color: rgba(250, 204, 21, 0.15);
+      color: #fde047;
+      border: 1px solid rgba(250, 204, 21, 0.4);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    #view-score .serve-badge.active {
+      opacity: 1;
+    }
+
+    #view-score .minus-btn {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      width: 46px;
+      height: 46px;
+      border-radius: 50%;
+      background: #1e232c;
+      border: 1px solid #384152;
+      color: #94a3b8;
+      font-size: 22px;
+      font-weight: bold;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+    }
+
+    #view-score .minus-btn:active {
+      background: #2e3644;
+      color: #fff;
+    }
+
+    /* =========================================
+       2. 球場自動分隊器樣式 (完全保留並隔離)
+       ========================================= */
+    #view-team {
+      background-color: #f1f5f9;
+      color: #1e293b;
+      min-height: 100vh;
+      padding: 16px 16px 84px 16px; /* 底部留白避免被右下角頁籤遮住 */
+      line-height: 1.5;
+      flex-direction: column;
+    }
+
+    @media (min-width: 768px) {
+      #view-team { padding: 32px 32px 84px 32px; }
+    }
+
+    #view-team .container { max-width: 960px; margin: 0 auto; width: 100%; }
+    #view-team .card {
+      background-color: #ffffff;
+      border-radius: 16px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    @media (min-width: 768px) { #view-team .card { padding: 24px; } }
+    #view-team .header-flex { display: flex; flex-direction: column; gap: 12px; }
+    @media (min-width: 768px) {
+      #view-team .header-flex { flex-direction: row; align-items: center; justify-content: space-between; }
+    }
+    #view-team h1 { font-size: 1.5rem; font-weight: 700; color: #0f172a; }
+    #view-team .subtitle { font-size: 0.875rem; color: #64748b; margin-top: 4px; }
+    #view-team .main-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+    @media (min-width: 768px) { #view-team .main-grid { grid-template-columns: 5fr 7fr; } }
+    #view-team .section-title {
+      font-size: 1.125rem;
+      font-weight: 700;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #e2e8f0;
+      margin-bottom: 16px;
+    }
+    #view-team .title-dark { color: #1e293b; }
+    #view-team .title-emerald { color: #047857; margin-bottom: 2px; border-bottom: none; padding-bottom: 0; }
+    #view-team .title-rose { color: #be123c; margin-bottom: 2px; border-bottom: none; padding-bottom: 0; }
+    #view-team .section-header-border { padding-bottom: 10px; border-bottom: 1px solid #e2e8f0; margin-bottom: 16px; }
+    #view-team .section-desc { font-size: 0.75rem; color: #64748b; }
+    #view-team .form-group { margin-bottom: 16px; }
+    #view-team .form-group:last-child { margin-bottom: 0; }
+    #view-team .label-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    #view-team label { display: block; font-size: 0.875rem; font-weight: 600; color: #334155; margin-bottom: 6px; }
+    #view-team .label-row label { margin-bottom: 0; }
+    #view-team .badge {
+      font-size: 0.75rem;
+      background-color: #dbeafe;
+      color: #1e40af;
+      font-weight: 600;
+      padding: 2px 10px;
+      border-radius: 9999px;
+    }
+    #view-team input[type="number"], #view-team textarea, #view-team select {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 0.9375rem;
+      color: #1e293b;
+      background-color: #ffffff;
+      font-family: inherit;
+    }
+    #view-team input[type="number"]:focus, #view-team textarea:focus, #view-team select:focus {
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    }
+    #view-team textarea { resize: vertical; line-height: 1.6; }
+    #view-team .hint { font-size: 0.75rem; color: #94a3b8; margin-top: 6px; }
+    #view-team .bind-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    @media (min-width: 640px) {
+      #view-team .bind-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    #view-team .bind-grid select { padding: 8px 10px; font-size: 0.875rem; }
+    #view-team .rule-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+    #view-team .rule-row select { flex: 1; min-width: 110px; padding: 8px 10px; font-size: 0.875rem; }
+    #view-team .rule-connector { font-weight: 700; color: #94a3b8; font-size: 0.875rem; }
+    #view-team button {
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      font-family: inherit;
+      font-weight: 600;
+      transition: background-color 0.15s, transform 0.1s;
+    }
+    #view-team button:active { transform: scale(0.98); }
+    #view-team .btn-demo { background-color: #f1f5f9; color: #334155; padding: 8px 16px; font-size: 0.875rem; border: 1px solid #cbd5e1; }
+    #view-team .btn-demo:hover { background-color: #e2e8f0; }
+    #view-team .btn-emerald-full { width: 100%; background-color: #059669; color: #ffffff; padding: 9px 16px; font-size: 0.875rem; margin-bottom: 12px; }
+    #view-team .btn-emerald-full:hover { background-color: #047857; }
+    #view-team .btn-rose { background-color: #e11d48; color: #ffffff; padding: 8px 16px; font-size: 0.875rem; }
+    #view-team .btn-rose:hover { background-color: #be123c; }
+    #view-team .btn-primary-lg {
+      width: 100%;
+      background-color: #2563eb;
+      color: #ffffff;
+      font-size: 1.125rem;
+      font-weight: 700;
+      padding: 16px;
+      border-radius: 14px;
+      box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.25);
+    }
+    #view-team .btn-primary-lg:hover { background-color: #1d4ed8; }
+    #view-team .btn-sm-gray { background-color: #f1f5f9; color: #334155; padding: 6px 12px; font-size: 0.875rem; border: 1px solid #cbd5e1; }
+    #view-team .btn-sm-gray:hover { background-color: #e2e8f0; }
+    #view-team .btn-sm-blue { background-color: #2563eb; color: #ffffff; padding: 6px 14px; font-size: 0.875rem; }
+    #view-team .btn-sm-blue:hover { background-color: #1d4ed8; }
+    #view-team .btn-sm-green { background-color: #059669 !important; color: #ffffff; padding: 6px 14px; font-size: 0.875rem; }
+    #view-team .tag-list { display: flex; flex-wrap: wrap; gap: 8px; min-height: 30px; align-items: center; }
+    #view-team .empty-text { font-size: 0.75rem; color: #94a3b8; font-style: italic; }
+    #view-team .tag-bind {
+      display: inline-flex; align-items: center; gap: 6px;
+      background-color: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0;
+      font-size: 0.8125rem; font-weight: 600; padding: 4px 10px; border-radius: 9999px;
+    }
+    #view-team .tag-exclude {
+      display: inline-flex; align-items: center; gap: 6px;
+      background-color: #fff1f2; color: #9f1239; border: 1px solid #fecdd3;
+      font-size: 0.8125rem; font-weight: 600; padding: 4px 10px; border-radius: 9999px;
+    }
+    #view-team .tag-close {
+      background: none; border: none; padding: 0 4px; font-size: 1rem; line-height: 1; color: inherit; opacity: 0.75;
+    }
+    #view-team .tag-close:hover { opacity: 1; }
+    #view-team .error-box {
+      background-color: #fff1f2; border: 1px solid #fda4af; color: #9f1239;
+      padding: 14px 16px; border-radius: 12px; font-size: 0.875rem; font-weight: 600; margin-bottom: 20px;
+    }
+    #view-team .hidden { display: none !important; }
+    #view-team .result-header {
+      display: flex; flex-direction: column; gap: 12px; padding-bottom: 14px;
+      border-bottom: 1px solid #e2e8f0; margin-bottom: 16px;
+    }
+    @media (min-width: 640px) {
+      #view-team .result-header { flex-direction: row; align-items: center; justify-content: space-between; }
+    }
+    #view-team .result-actions { display: flex; gap: 8px; }
+    #view-team .teams-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+    @media (min-width: 640px) { #view-team .teams-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (min-width: 900px) { #view-team .teams-grid { grid-template-columns: repeat(3, 1fr); } }
+    #view-team .team-card { border-radius: 12px; padding: 16px; border: 1px solid #cbd5e1; }
+    #view-team .team-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    #view-team .team-badge { color: #ffffff; font-size: 0.8125rem; font-weight: 700; padding: 3px 10px; border-radius: 6px; }
+    #view-team .team-count { font-size: 0.75rem; font-weight: 600; color: #64748b; }
+    #view-team .member-list { list-style: none; }
+    #view-team .member-item {
+      background-color: rgba(255, 255, 255, 0.85); padding: 6px 12px; border-radius: 8px;
+      font-size: 0.9375rem; font-weight: 600; color: #1e293b; margin-bottom: 6px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    #view-team .member-item:last-child { margin-bottom: 0; }
+    #view-team .member-num { font-size: 0.75rem; color: #94a3b8; width: 16px; }
+    #view-team .theme-0 { background-color: #eff6ff; border-color: #bfdbfe; }
+    #view-team .theme-0 .team-badge { background-color: #2563eb; }
+    #view-team .theme-1 { background-color: #fffbeb; border-color: #fde68a; }
+    #view-team .theme-1 .team-badge { background-color: #d97706; }
+    #view-team .theme-2 { background-color: #ecfdf5; border-color: #a7f3d0; }
+    #view-team .theme-2 .team-badge { background-color: #059669; }
+    #view-team .theme-3 { background-color: #faf5ff; border-color: #e9d5ff; }
+    #view-team .theme-3 .team-badge { background-color: #9333ea; }
+    #view-team .theme-4 { background-color: #fff1f2; border-color: #fecdd3; }
+    #view-team .theme-4 .team-badge { background-color: #e11d48; }
+
+    /* =========================================
+       3. 右下角懸浮功能頁籤 (Floating Tabs)
+       ========================================= */
+    .floating-tabs {
+      position: fixed;
+      bottom: 14px;
+      right: 16px;
+      display: flex;
+      background-color: rgba(20, 23, 29, 0.92);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid #333b48;
+      border-radius: 999px;
+      padding: 4px;
+      gap: 4px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+      z-index: 9999;
+    }
+
+    .floating-tab-btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 999px;
+      background: transparent;
+      color: #94a3b8;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+
+    .floating-tab-btn:hover {
+      color: #f8fafc;
+    }
+
+    .floating-tab-btn.active {
+      background-color: #2563eb;
+      color: #ffffff;
+      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 畫面一：暗黑護眼運動計分板 -->
+  <div id="view-score" class="app-view active">
+    <div class="top-bar">
+      <button onclick="swapSides()">⇄ 換邊</button>
+      <div class="set-display">
+        局數 <span id="setLeft">0</span> : <span id="setRight">0</span>
+      </div>
+      <div>
+        <button onclick="nextSet()">結束本局</button>
+        <button onclick="resetAll()" style="margin-left: 6px;">歸零</button>
+      </div>
+    </div>
+
+    <div class="board">
+      <div class="team theme-red" id="boxLeft" onclick="addScore('left')">
+        <input type="text" class="team-name" id="nameLeft" value="主隊" onclick="event.stopPropagation()">
+        <div class="score" id="scoreLeft">0</div>
+        <div class="serve-badge active" id="serveLeft">🏐 發球權</div>
+        <button class="minus-btn" onclick="subScore(event, 'left')">-</button>
+      </div>
+
+      <div class="team theme-blue" id="boxRight" onclick="addScore('right')">
+        <input type="text" class="team-name" id="nameRight" value="客隊" onclick="event.stopPropagation()">
+        <div class="score" id="scoreRight">0</div>
+        <div class="serve-badge" id="serveRight">🏐 發球權</div>
+        <button class="minus-btn" onclick="subScore(event, 'right')">-</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 畫面二：球場自動分隊器 -->
+  <div id="view-team" class="app-view">
+    <div class="container">
+      <header class="card header-flex">
+        <div>
+          <h1>🏀 球場自動分隊器</h1>
+          <p class="subtitle">支援指定「最多6人同隊綁定」與「拆散互斥」，公平隨機分配隊伍</p>
+        </div>
+        <button type="button" onclick="loadDemoData()" class="btn-demo">填入範例名單 (18人)</button>
+      </header>
+
+      <div class="main-grid">
+        <div>
+          <div class="card">
+            <h2 class="section-title title-dark">1. 基本設定與名單</h2>
+            <div class="form-group">
+              <label for="teamCount">分成幾隊？</label>
+              <input type="number" id="teamCount" value="3" min="2" max="10">
+            </div>
+            <div class="form-group">
+              <div class="label-row">
+                <label for="playerInput">球員名單（用空格分隔）</label>
+                <span id="playerCountBadge" class="badge">0 人</span>
+              </div>
+              <textarea id="playerInput" rows="10" oninput="syncPlayers()" placeholder="請用空格分隔球員名字，例如：&#10;1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18"></textarea>
+              <p class="hint">提示：輸入空格後會自動更新右側選單（亦相容換行或逗號）。</p>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <div class="section-header-border">
+              <h2 class="section-title title-emerald">2. 綁定組（必須同隊，最多6人）</h2>
+              <p class="section-desc">選擇 2 至 6 位球員綁定在同一隊（可只選 2～5 位，其餘留空）</p>
+            </div>
+            <div class="bind-grid">
+              <select id="bindP1"><option value="">球員 1（必選）</option></select>
+              <select id="bindP2"><option value="">球員 2（必選）</option></select>
+              <select id="bindP3"><option value="">球員 3（選填）</option></select>
+              <select id="bindP4"><option value="">球員 4（選填）</option></select>
+              <select id="bindP5"><option value="">球員 5（選填）</option></select>
+              <select id="bindP6"><option value="">球員 6（選填）</option></select>
+            </div>
+            <button type="button" onclick="addBindGroup()" class="btn-emerald-full">＋ 新增綁定組</button>
+            <div id="bindList" class="tag-list">
+              <span class="empty-text">尚未設定綁定組</span>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="section-header-border">
+              <h2 class="section-title title-rose">3. 互斥組（必須不同隊）</h2>
+              <p class="section-desc">適合兩位主將拆開、避免戰力失衡</p>
+            </div>
+            <div class="rule-row">
+              <select id="excludeP1"><option value="">選擇球員...</option></select>
+              <span class="rule-connector">VS</span>
+              <select id="excludeP2"><option value="">選擇球員...</option></select>
+              <button type="button" onclick="addExcludeRule()" class="btn-rose">新增互斥</button>
+            </div>
+            <div id="excludeList" class="tag-list">
+              <span class="empty-text">尚未設定互斥組</span>
+            </div>
+          </div>
+
+          <button type="button" onclick="generateTeams()" class="btn-primary-lg">🎲 開始隨機分隊</button>
+        </div>
+      </div>
+
+      <div id="errorBox" class="error-box hidden"></div>
+
+      <div id="resultSection" class="card hidden">
+        <div class="result-header">
+          <h2 style="font-size: 1.25rem; font-weight: 700; color: #0f172a;">🏆 分隊結果</h2>
+          <div class="result-actions">
+            <button type="button" onclick="generateTeams()" class="btn-sm-gray">🔄 重新抽籤</button>
+            <button type="button" id="copyBtn" onclick="copyResult()" class="btn-sm-blue">📋 複製結果（貼到 LINE）</button>
+          </div>
+        </div>
+        <div id="teamsGrid" class="teams-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右下角懸浮功能頁籤 -->
+  <div class="floating-tabs">
+    <button type="button" class="floating-tab-btn active" onclick="switchAppTab('view-score', this)">🏆 計分板</button>
+    <button type="button" class="floating-tab-btn" onclick="switchAppTab('view-team', this)">🏀 分隊器</button>
+  </div>
+
+  <script>
+    /* =========================================
+       頁籤切換控制
+       ========================================= */
+    function switchAppTab(viewId, btnEl) {
+      document.querySelectorAll('.app-view').forEach(function(v) {
+        v.classList.remove('active');
+      });
+      document.querySelectorAll('.floating-tab-btn').forEach(function(b) {
+        b.classList.remove('active');
+      });
+      document.getElementById(viewId).classList.add('active');
+      btnEl.classList.add('active');
+    }
+
+    /* =========================================
+       計分板邏輯
+       ========================================= */
+    let state = {
+      left: { name: '主隊', score: 0, sets: 0, theme: 'theme-red' },
+      right: { name: '客隊', score: 0, sets: 0, theme: 'theme-blue' },
+      serve: 'left'
+    };
+
+    window.addEventListener('DOMContentLoaded', function() {
+      const saved = localStorage.getItem('darkScoreState');
+      if (saved) {
+        state = JSON.parse(saved);
+        renderScoreboard();
+      }
+    });
+
+    function saveState() {
+      state.left.name = document.getElementById('nameLeft').value;
+      state.right.name = document.getElementById('nameRight').value;
+      localStorage.setItem('darkScoreState', JSON.stringify(state));
+    }
+
+    function renderScoreboard() {
+      document.getElementById('nameLeft').value = state.left.name;
+      document.getElementById('scoreLeft').innerText = state.left.score;
+      document.getElementById('setLeft').innerText = state.left.sets;
+      document.getElementById('boxLeft').className = 'team ' + state.left.theme;
+
+      document.getElementById('nameRight').value = state.right.name;
+      document.getElementById('scoreRight').innerText = state.right.score;
+      document.getElementById('setRight').innerText = state.right.sets;
+      document.getElementById('boxRight').className = 'team ' + state.right.theme;
+
+      document.getElementById('serveLeft').classList.toggle('active', state.serve === 'left');
+      document.getElementById('serveRight').classList.toggle('active', state.serve === 'right');
+      saveState();
+    }
+
+    function addScore(side) {
+      state[side].score++;
+      state.serve = side;
+      renderScoreboard();
+    }
+
+    function subScore(event, side) {
+      event.stopPropagation();
+      if (state[side].score > 0) {
+        state[side].score--;
+        renderScoreboard();
+      }
+    }
+
+    function swapSides() {
+      saveState();
+      const temp = { ...state.left };
+      state.left = { ...state.right };
+      state.right = temp;
+      state.serve = state.serve === 'left' ? 'right' : 'left';
+      renderScoreboard();
+    }
+
+    function nextSet() {
+      if (state.left.score === 0 && state.right.score === 0) return;
+      if (state.left.score > state.right.score) {
+        state.left.sets++;
+      } else if (state.right.score > state.left.score) {
+        state.right.sets++;
+      }
+      state.left.score = 0;
+      state.right.score = 0;
+      renderScoreboard();
+    }
+
+    function resetAll() {
+      if (confirm('確定要將所有分數與局數歸零嗎？')) {
+        state.left.score = 0;
+        state.left.sets = 0;
+        state.right.score = 0;
+        state.right.sets = 0;
+        state.serve = 'left';
+        renderScoreboard();
+      }
+    }
+
+    document.getElementById('nameLeft').addEventListener('input', saveState);
+    document.getElementById('nameRight').addEventListener('input', saveState);
+
+    /* =========================================
+       分隊器邏輯 (完全保留並補齊末尾函式)
+       ========================================= */
+    var players = [];
+    var bindGroups = [];
+    var excludeRules = [];
+    var lastGeneratedTeams = [];
+    var MAX_BIND_SIZE = 6;
+
+    function syncPlayers() {
+      var raw = document.getElementById('playerInput').value;
+      var parts = raw.split(/[\s,，、]+/);
+      var unique = [];
+      for (var i = 0; i < parts.length; i++) {
+        var name = parts[i].trim();
+        if (name.length > 0 && unique.indexOf(name) === -1) {
+          unique.push(name);
+        }
+      }
+      players = unique;
+      document.getElementById('playerCountBadge').textContent = players.length + ' 人';
+
+      var updatedBindGroups = [];
+      for (var g = 0; g < bindGroups.length; g++) {
+        var validMembers = [];
+        for (var m = 0; m < bindGroups[g].length; m++) {
+          if (players.indexOf(bindGroups[g][m]) !== -1) {
+            validMembers.push(bindGroups[g][m]);
+          }
+        }
+        if (validMembers.length >= 2) {
+          updatedBindGroups.push(validMembers);
+        }
+      }
+      bindGroups = updatedBindGroups;
+
+      var newExclude = [];
+      for (var k = 0; k < excludeRules.length; k++) {
+        if (players.indexOf(excludeRules[k].p1) !== -1 && players.indexOf(excludeRules[k].p2) !== -1) {
+          newExclude.push(excludeRules[k]);
+        }
+      }
+      excludeRules = newExclude;
+
+      updateSelectOptions();
+      renderRules();
+    }
+
+    function updateSelectOptions() {
+      var bindConfigs = [
+        { id: 'bindP1', placeholder: '球員 1（必選）' },
+        { id: 'bindP2', placeholder: '球員 2（必選）' },
+        { id: 'bindP3', placeholder: '球員 3（選填）' },
+        { id: 'bindP4', placeholder: '球員 4（選填）' },
+        { id: 'bindP5', placeholder: '球員 5（選填）' },
+        { id: 'bindP6', placeholder: '球員 6（選填）' }
+      ];
+
+      for (var i = 0; i < bindConfigs.length; i++) {
+        var select = document.getElementById(bindConfigs[i].id);
+        var currentVal = select.value;
+        select.innerHTML = '<option value="">' + bindConfigs[i].placeholder + '</option>';
+        for (var j = 0; j < players.length; j++) {
+          var opt = document.createElement('option');
+          opt.value = players[j];
+          opt.textContent = players[j];
+          select.appendChild(opt);
+        }
+        if (players.indexOf(currentVal) !== -1) {
+          select.value = currentVal;
+        }
+      }
+
+      var exIds = ['excludeP1', 'excludeP2'];
+      for (var e = 0; e < exIds.length; e++) {
+        var exSelect = document.getElementById(exIds[e]);
+        var exCurrentVal = exSelect.value;
+        exSelect.innerHTML = '<option value="">選擇球員...</option>';
+        for (var p = 0; p < players.length; p++) {
+          var exOpt = document.createElement('option');
+          exOpt.value = players[p];
+          exOpt.textContent = players[p];
+          exSelect.appendChild(exOpt);
+        }
+        if (players.indexOf(exCurrentVal) !== -1) {
+          exSelect.value = exCurrentVal;
+        }
+      }
+    }
+
+    function addBindGroup() {
+      var selectIds = ['bindP1', 'bindP2', 'bindP3', 'bindP4', 'bindP5', 'bindP6'];
+      var selected = [];
+      for (var i = 0; i < selectIds.length; i++) {
+        var val = document.getElementById(selectIds[i]).value;
+        if (val) {
+          if (selected.indexOf(val) !== -1) {
+            showError('同一個綁定組中不能重複選擇「' + val + '」！');
+            return;
+          }
+          selected.push(val);
+        }
+      }
+
+      if (selected.length < 2) {
+        showError('綁定組至少需要選擇 2 位不同的球員！');
+        return;
+      }
+
+      if (selected.length > MAX_BIND_SIZE) {
+        showError('綁定組最多只能選擇 ' + MAX_BIND_SIZE + ' 位球員！');
+        return;
+      }
+
+      hideError();
+
+      var sortedNew = selected.slice().sort();
+      var isDuplicate = false;
+      for (var g = 0; g < bindGroups.length; g++) {
+        var sortedExisting = bindGroups[g].slice().sort();
+        if (sortedExisting.length === sortedNew.length && sortedExisting.join('|') === sortedNew.join('|')) {
+          isDuplicate = true;
+          break;
+        }
+      }
+
+      if (!isDuplicate) {
+        bindGroups.push(selected);
+      }
+
+      for (var c = 0; c < selectIds.length; c++) {
+        document.getElementById(selectIds[c]).value = '';
+      }
+      renderRules();
+    }
+
+    function addExcludeRule() {
+      var p1 = document.getElementById('excludeP1').value;
+      var p2 = document.getElementById('excludeP2').value;
+
+      if (!p1 || !p2) {
+        showError('請先選擇兩位球員！');
+        return;
+      }
+      if (p1 === p2) {
+        showError('不能選擇同一位球員！');
+        return;
+      }
+      hideError();
+
+      var sorted = [p1, p2].sort();
+      var ruleObj = { p1: sorted[0], p2: sorted[1] };
+
+      var exists = false;
+      for (var i = 0; i < excludeRules.length; i++) {
+        if (excludeRules[i].p1 === ruleObj.p1 && excludeRules[i].p2 === ruleObj.p2) {
+          exists = true;
+          break;
+        }
+      }
+      if (!exists) {
+        excludeRules.push(ruleObj);
+      }
+
+      document.getElementById('excludeP1').value = '';
+      document.getElementById('excludeP2').value = '';
+      renderRules();
+    }
+
+    function removeRule(type, index) {
+      if (type === 'bind') {
+        bindGroups.splice(index, 1);
+      } else {
+        excludeRules.splice(index, 1);
+      }
+      renderRules();
+    }
+
+    function renderRules() {
+      var bindContainer = document.getElementById('bindList');
+      var excludeContainer = document.getElementById('excludeList');
+
+      if (bindGroups.length === 0) {
+        bindContainer.innerHTML = '<span class="empty-text">尚未設定綁定組</span>';
+      } else {
+        var bindHtml = '';
+        for (var i = 0; i < bindGroups.length; i++) {
+          var escapedMembers = [];
+          for (var m = 0; m < bindGroups[i].length; m++) {
+            escapedMembers.push(escapeHtml(bindGroups[i][m]));
+          }
+          bindHtml += '<span class="tag-bind">' +
+            escapedMembers.join(' &amp; ') + ' (' + bindGroups[i].length + '人)' +
+            '<button type="button" class="tag-close" onclick="removeRule(\'bind\', ' + i + ')">&times;</button>' +
+            '</span>';
+        }
+        bindContainer.innerHTML = bindHtml;
+      }
+
+      if (excludeRules.length === 0) {
+        excludeContainer.innerHTML = '<span class="empty-text">尚未設定互斥組</span>';
+      } else {
+        var exHtml = '';
+        for (var j = 0; j < excludeRules.length; j++) {
+          exHtml += '<span class="tag-exclude">' +
+            escapeHtml(excludeRules[j].p1) + ' ≠ ' + escapeHtml(excludeRules[j].p2) +
+            '<button type="button" class="tag-close" onclick="removeRule(\'exclude\', ' + j + ')">&times;</button>' +
+            '</span>';
+        }
+        excludeContainer.innerHTML = exHtml;
+      }
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function solveAssignment(blockIdx, shuffledBlocks, teams, teamCount, minSize, maxSize) {
+      if (blockIdx === shuffledBlocks.length) {
+        for (var checkIdx = 0; checkIdx < teams.length; checkIdx++) {
+          if (teams[checkIdx].length < minSize || teams[checkIdx].length > maxSize) {
+            return false;
+          }
+        }
+        return true;
+      }
+
+      var currentBlock = shuffledBlocks[blockIdx];
+      var teamIndices = [];
+      for (var idx = 0; idx < teamCount; idx++) {
+        teamIndices.push(idx);
+      }
+      teamIndices.sort(function() { return Math.random() - 0.5; });
+
+      for (var ti = 0; ti < teamIndices.length; ti++) {
+        var tIdx = teamIndices[ti];
+        var targetTeam = teams[tIdx];
+        if (targetTeam.length + currentBlock.length > maxSize) {
+          continue;
+        }
+
+        var hasConflict = false;
+        for (var mi = 0; mi < currentBlock.length; mi++) {
+          var member = currentBlock[mi];
+          for (var ei = 0; ei < targetTeam.length; ei++) {
+            var existing = targetTeam[ei];
+            for (var ri = 0; ri < excludeRules.length; ri++) {
+              var rule = excludeRules[ri];
+              if ((rule.p1 === member && rule.p2 === existing) || (rule.p1 === existing && rule.p2 === member)) {
+                hasConflict = true;
+                break;
+              }
+            }
+            if (hasConflict) break;
+          }
+          if (hasConflict) break;
+        }
+
+        if (!hasConflict) {
+          for (var addIdx = 0; addIdx < currentBlock.length; addIdx++) {
+            targetTeam.push(currentBlock[addIdx]);
+          }
+          if (solveAssignment(blockIdx + 1, shuffledBlocks, teams, teamCount, minSize, maxSize)) {
+            return true;
+          }
+          targetTeam.splice(targetTeam.length - currentBlock.length, currentBlock.length);
+        }
+      }
+      return false;
+    }
+
+    function generateTeams() {
+      try {
+        hideError();
+        syncPlayers();
+        var teamCount = parseInt(document.getElementById('teamCount').value, 10);
+
+        if (isNaN(teamCount) || teamCount < 2) {
+          showError('隊伍數量至少需要 2 隊！');
+          return;
+        }
+
+        if (players.length < teamCount) {
+          showError('總人數（' + players.length + '人）少於隊伍數（' + teamCount + '隊），無法分隊！');
+          return;
+        }
+
+        var parent = {};
+        for (var i = 0; i < players.length; i++) {
+          parent[players[i]] = players[i];
+        }
+
+        function findRoot(x) {
+          while (parent[x] !== x) {
+            parent[x] = parent[parent[x]];
+            x = parent[x];
+          }
+          return x;
+        }
+
+        function unionSet(x, y) {
+          var rootX = findRoot(x);
+          var rootY = findRoot(y);
+          if (rootX !== rootY) {
+            parent[rootX] = rootY;
+          }
+        }
+
+        for (var g = 0; g < bindGroups.length; g++) {
+          var group = bindGroups[g];
+          for (var m = 1; m < group.length; m++) {
+            unionSet(group[0], group[m]);
+          }
+        }
+
+        for (var e = 0; e < excludeRules.length; e++) {
+          if (findRoot(excludeRules[e].p1) === findRoot(excludeRules[e].p2)) {
+            showError('規則衝突：「' + excludeRules[e].p1 + '」與「' + excludeRules[e].p2 + '」同時被設為綁定（同隊）與互斥（不同隊）！');
+            return;
+          }
+        }
+
+        var blocksMap = {};
+        for (var p = 0; p < players.length; p++) {
+          var root = findRoot(players[p]);
+          if (!blocksMap[root]) {
+            blocksMap[root] = [];
+          }
+          blocksMap[root].push(players[p]);
+        }
+
+        var blocks = [];
+        for (var key in blocksMap) {
+          if (blocksMap.hasOwnProperty(key)) {
+            blocks.push(blocksMap[key]);
+          }
+        }
+
+        var maxIdealSize = Math.ceil(players.length / teamCount);
+        for (var b = 0; b < blocks.length; b++) {
+          if (blocks[b].length > MAX_BIND_SIZE) {
+            showError('綁定群組（' + blocks[b].join('、') + '）合併後共 ' + blocks[b].length + ' 人，超過單組綁定上限（最多 ' + MAX_BIND_SIZE + ' 人）！');
+            return;
+          }
+          if (blocks[b].length > maxIdealSize) {
+            showError('綁定群組（' + blocks[b].join('、') + '）共 ' + blocks[b].length + ' 人，超過目前平均每隊人數上限（' + maxIdealSize + ' 人），請減少綁定人數或調整隊數！');
+            return;
+          }
+        }
+
+        var bestSolution = null;
+        var MAX_ATTEMPTS = 500;
+        var minSize = Math.floor(players.length / teamCount);
+        var maxSize = Math.ceil(players.length / teamCount);
+
+        for (var attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+          var shuffledBlocks = blocks.slice().sort(function(a, b) {
+            if (b.length !== a.length) return b.length - a.length;
+            return Math.random() - 0.5;
+          });
+
+          var teams = [];
+          for (var t = 0; t < teamCount; t++) {
+            teams.push([]);
+          }
+
+          if (solveAssignment(0, shuffledBlocks, teams, teamCount, minSize, maxSize)) {
+            bestSolution = teams;
+            break;
+          }
+        }
+
+        if (!bestSolution) {
+          showError('找不到符合所有綁定與互斥條件的平均分隊方式，請嘗試放寬部分互斥條件！');
+          return;
+        }
+
+        lastGeneratedTeams = [];
+        for (var s = 0; s < bestSolution.length; s++) {
+          lastGeneratedTeams.push(bestSolution[s].slice().sort(function() { return Math.random() - 0.5; }));
+        }
+        renderTeams(lastGeneratedTeams);
+      } catch (err) {
+        showError('執行發生錯誤：' + err.message);
+      }
+    }
+
+    function renderTeams(teams) {
+      var resultSection = document.getElementById('resultSection');
+      var grid = document.getElementById('teamsGrid');
+
+      var html = '';
+      for (var idx = 0; idx < teams.length; idx++) {
+        var team = teams[idx];
+        var themeClass = 'theme-' + (idx % 5);
+        var teamName = String.fromCharCode(65 + idx);
+        var listHtml = '';
+        for (var pIdx = 0; pIdx < team.length; pIdx++) {
+          listHtml += '<li class="member-item">' +
+            '<span class="member-num">' + (pIdx + 1) + '.</span>' +
+            '<span>' + escapeHtml(team[pIdx]) + '</span>' +
+            '</li>';
+        }
+
+        html += '<div class="team-card ' + themeClass + '">' +
+          '<div class="team-card-top">' +
+            '<span class="team-badge">第 ' + teamName + ' 隊</span>' +
+            '<span class="team-count">' + team.length + ' 人</span>' +
+          '</div>' +
+          '<ul class="member-list">' + listHtml + '</ul>' +
+        '</div>';
+      }
+
+      grid.innerHTML = html;
+      resultSection.classList.remove('hidden');
+      if (resultSection.scrollIntoView) {
+        resultSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+
+    function copyResult() {
+      if (!lastGeneratedTeams.length) return;
+      var lines = [];
+      for (var idx = 0; idx < lastGeneratedTeams.length; idx++) {
+        var team = lastGeneratedTeams[idx];
+        var teamName = String.fromCharCode(65 + idx);
+        lines.push('【第 ' + teamName + ' 隊】(' + team.length + '人)\n' + team.join(' '));
+      }
+      var text = lines.join('\n\n');
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(showCopySuccess);
+      } else {
+        var tempInput = document.createElement('textarea');
+        tempInput.value = text;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempInput);
+        showCopySuccess();
+      }
+    }
+
+    function showCopySuccess() {
+      var btn = document.getElementById('copyBtn');
+      var orig = btn.textContent;
+      btn.textContent = '✅ 已複製到剪貼簿！';
+      btn.classList.add('btn-sm-green');
+      setTimeout(function() {
+        btn.textContent = orig;
+        btn.classList.remove('btn-sm-green');
+      }, 2000);
+    }
+
+    function showError(msg) {
+      var box = document.getElementById('errorBox');
+      box.textContent = '⚠️ ' + msg;
+      box.classList.remove('hidden');
+      if (box.scrollIntoView) {
+        box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+
+    function hideError() {
+      var box = document.getElementById('errorBox');
+      box.classList.add('hidden');
+      box.textContent = '';
+    }
+
+    function loadDemoData() {
+      document.getElementById('teamCount').value = 3;
+      document.getElementById('playerInput').value = '1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18';
+      bindGroups = [];
+      excludeRules = [];
+      syncPlayers();
+    }
+  </script>
+</body>
+</html>
