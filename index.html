@@ -229,6 +229,7 @@
     @media (min-width: 768px) {
       #view-team .header-flex { flex-direction: row; align-items: center; justify-content: space-between; }
     }
+    #view-team .demo-actions { display: flex; flex-wrap: wrap; gap: 8px; }
     #view-team h1 { font-size: 1.5rem; font-weight: 700; color: #0f172a; }
     #view-team .subtitle { font-size: 0.875rem; color: #64748b; margin-top: 4px; }
     #view-team .main-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
@@ -297,7 +298,7 @@
       transition: background-color 0.15s, transform 0.1s;
     }
     #view-team button:active { transform: scale(0.98); }
-    #view-team .btn-demo { background-color: #f1f5f9; color: #334155; padding: 8px 16px; font-size: 0.875rem; border: 1px solid #cbd5e1; }
+    #view-team .btn-demo { background-color: #f1f5f9; color: #334155; padding: 8px 14px; font-size: 0.875rem; border: 1px solid #cbd5e1; }
     #view-team .btn-demo:hover { background-color: #e2e8f0; }
     #view-team .btn-emerald-full { width: 100%; background-color: #059669; color: #ffffff; padding: 9px 16px; font-size: 0.875rem; margin-bottom: 12px; }
     #view-team .btn-emerald-full:hover { background-color: #047857; }
@@ -457,7 +458,10 @@
           <h1>🏀 球場自動分隊器</h1>
           <p class="subtitle">支援指定「最多6人同隊綁定」與「拆散互斥」，公平隨機分配隊伍</p>
         </div>
-        <button type="button" onclick="loadDemoData()" class="btn-demo">填入範例名單 (18人)</button>
+        <div class="demo-actions">
+          <button type="button" onclick="loadDemoData()" class="btn-demo">填入範例 (18人/空格)</button>
+          <button type="button" onclick="loadDemoDataNewline()" class="btn-demo">填入範例 (18人/斷行)</button>
+        </div>
       </header>
 
       <div class="main-grid">
@@ -470,11 +474,11 @@
             </div>
             <div class="form-group">
               <div class="label-row">
-                <label for="playerInput">球員名單（用空格分隔）</label>
+                <label for="playerInput">球員名單（用空格或斷行分隔）</label>
                 <span id="playerCountBadge" class="badge">0 人</span>
               </div>
-              <textarea id="playerInput" rows="10" oninput="syncPlayers()" placeholder="請用空格分隔球員名字，例如：&#10;1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18"></textarea>
-              <p class="hint">提示：輸入空格後會自動更新右側選單（亦相容換行或逗號）。</p>
+              <textarea id="playerInput" rows="10" oninput="syncPlayers()" placeholder="請輸入球員名字（空格或換行皆可），例如：&#10;1&#10;2&#10;3&#10;4&#10;5&#10;..."></textarea>
+              <p class="hint">提示：輸入空格或換行後會自動更新右側選單（亦相容逗號）。</p>
             </div>
           </div>
         </div>
@@ -644,7 +648,7 @@
     document.getElementById('nameRight').addEventListener('input', saveState);
 
     /* =========================================
-       分隊器邏輯 (完全保留並補齊末尾函式)
+       分隊器邏輯
        ========================================= */
     var players = [];
     var bindGroups = [];
@@ -1115,6 +1119,14 @@
     function loadDemoData() {
       document.getElementById('teamCount').value = 3;
       document.getElementById('playerInput').value = '1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18';
+      bindGroups = [];
+      excludeRules = [];
+      syncPlayers();
+    }
+
+    function loadDemoDataNewline() {
+      document.getElementById('teamCount').value = 3;
+      document.getElementById('playerInput').value = '1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16\n17\n18';
       bindGroups = [];
       excludeRules = [];
       syncPlayers();
