@@ -86,7 +86,7 @@
       display: flex;
       flex-direction: row;
       gap: 10px;
-      padding: 10px 10px 68px 10px; /* 底部留空間給右下角懸浮頁籤，避免遮擋 */
+      padding: 10px 10px 68px 10px;
       background-color: #0d0f12;
     }
 
@@ -206,7 +206,7 @@
       background-color: #f1f5f9;
       color: #1e293b;
       min-height: 100vh;
-      padding: 16px 16px 84px 16px; /* 底部留白避免被右下角頁籤遮住 */
+      padding: 16px 16px 84px 16px;
       line-height: 1.5;
       flex-direction: column;
     }
@@ -229,7 +229,12 @@
     @media (min-width: 768px) {
       #view-team .header-flex { flex-direction: row; align-items: center; justify-content: space-between; }
     }
-    #view-team .demo-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    #view-team .demo-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
     #view-team h1 { font-size: 1.5rem; font-weight: 700; color: #0f172a; }
     #view-team .subtitle { font-size: 0.875rem; color: #64748b; margin-top: 4px; }
     #view-team .main-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
@@ -248,6 +253,12 @@
     #view-team .section-desc { font-size: 0.75rem; color: #64748b; }
     #view-team .form-group { margin-bottom: 16px; }
     #view-team .form-group:last-child { margin-bottom: 0; }
+    #view-team .setup-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
     #view-team .label-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
     #view-team label { display: block; font-size: 0.875rem; font-weight: 600; color: #334155; margin-bottom: 6px; }
     #view-team .label-row label { margin-bottom: 0; }
@@ -298,7 +309,15 @@
       transition: background-color 0.15s, transform 0.1s;
     }
     #view-team button:active { transform: scale(0.98); }
-    #view-team .btn-demo { background-color: #f1f5f9; color: #334155; padding: 8px 14px; font-size: 0.875rem; border: 1px solid #cbd5e1; }
+    #view-team .btn-demo {
+      width: 100%;
+      background-color: #f1f5f9;
+      color: #334155;
+      padding: 8px 10px;
+      font-size: 0.8125rem;
+      border: 1px solid #cbd5e1;
+      text-align: center;
+    }
     #view-team .btn-demo:hover { background-color: #e2e8f0; }
     #view-team .btn-emerald-full { width: 100%; background-color: #059669; color: #ffffff; padding: 9px 16px; font-size: 0.875rem; margin-bottom: 12px; }
     #view-team .btn-emerald-full:hover { background-color: #047857; }
@@ -458,26 +477,32 @@
           <h1>🏀 球場自動分隊器</h1>
           <p class="subtitle">支援指定「最多6人同隊綁定」與「拆散互斥」，公平隨機分配隊伍</p>
         </div>
-        <div class="demo-actions">
-          <button type="button" onclick="loadDemoData()" class="btn-demo">填入範例 (18人/空格)</button>
-          <button type="button" onclick="loadDemoDataNewline()" class="btn-demo">填入範例 (18人/斷行)</button>
-        </div>
       </header>
 
       <div class="main-grid">
         <div>
           <div class="card">
             <h2 class="section-title title-dark">1. 基本設定與名單</h2>
-            <div class="form-group">
-              <label for="teamCount">分成幾隊？</label>
-              <input type="number" id="teamCount" value="3" min="2" max="10">
+            <div class="setup-row">
+              <div>
+                <label for="totalPlayerTarget">總人數</label>
+                <input type="number" id="totalPlayerTarget" value="18" min="2" max="100" oninput="updateDemoLabels()">
+              </div>
+              <div>
+                <label for="teamCount">分成幾隊？</label>
+                <input type="number" id="teamCount" value="3" min="2" max="10">
+              </div>
+            </div>
+            <div class="demo-actions">
+              <button type="button" id="btnDemoSpace" onclick="loadDemoData('space')" class="btn-demo">填入範例 (18人/空格)</button>
+              <button type="button" id="btnDemoNewline" onclick="loadDemoData('newline')" class="btn-demo">填入範例 (18人/斷行)</button>
             </div>
             <div class="form-group">
               <div class="label-row">
                 <label for="playerInput">球員名單（用空格或斷行分隔）</label>
                 <span id="playerCountBadge" class="badge">0 人</span>
               </div>
-              <textarea id="playerInput" rows="10" oninput="syncPlayers()" placeholder="請輸入球員名字（空格或換行皆可），例如：&#10;1&#10;2&#10;3&#10;4&#10;5&#10;..."></textarea>
+              <textarea id="playerInput" rows="10" oninput="syncPlayers()" placeholder="請輸入球員名字（空格或換行皆可），或點擊上方「填入範例」依總人數自動生成"></textarea>
               <p class="hint">提示：輸入空格或換行後會自動更新右側選單（亦相容逗號）。</p>
             </div>
           </div>
@@ -574,6 +599,7 @@
         state = JSON.parse(saved);
         renderScoreboard();
       }
+      updateDemoLabels();
     });
 
     function saveState() {
@@ -655,6 +681,33 @@
     var excludeRules = [];
     var lastGeneratedTeams = [];
     var MAX_BIND_SIZE = 6;
+
+    function getTargetPlayerCount() {
+      var val = parseInt(document.getElementById('totalPlayerTarget').value, 10);
+      if (isNaN(val) || val < 2) return 2;
+      if (val > 200) return 200;
+      return val;
+    }
+
+    function updateDemoLabels() {
+      var count = getTargetPlayerCount();
+      document.getElementById('btnDemoSpace').textContent = '填入範例 (' + count + '人/空格)';
+      document.getElementById('btnDemoNewline').textContent = '填入範例 (' + count + '人/斷行)';
+    }
+
+    function loadDemoData(format) {
+      var count = getTargetPlayerCount();
+      var nums = [];
+      for (var i = 1; i <= count; i++) {
+        nums.push(String(i));
+      }
+      var separator = (format === 'newline') ? '\n' : ' ';
+      document.getElementById('playerInput').value = nums.join(separator);
+      bindGroups = [];
+      excludeRules = [];
+      hideError();
+      syncPlayers();
+    }
 
     function syncPlayers() {
       var raw = document.getElementById('playerInput').value;
@@ -1114,22 +1167,6 @@
       var box = document.getElementById('errorBox');
       box.classList.add('hidden');
       box.textContent = '';
-    }
-
-    function loadDemoData() {
-      document.getElementById('teamCount').value = 3;
-      document.getElementById('playerInput').value = '1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18';
-      bindGroups = [];
-      excludeRules = [];
-      syncPlayers();
-    }
-
-    function loadDemoDataNewline() {
-      document.getElementById('teamCount').value = 3;
-      document.getElementById('playerInput').value = '1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16\n17\n18';
-      bindGroups = [];
-      excludeRules = [];
-      syncPlayers();
     }
   </script>
 </body>
